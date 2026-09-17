@@ -1,0 +1,15 @@
+# This role don't assume other jails, so default section kludged in this file
+[default]
+{% if security_fail2ban_sshd_ignoreip | length > 0 %}
+ignoreip = {{ security_fail2ban_sshd_ignoreip | join(' ') }}
+{% endif %}
+
+[sshd]
+enabled = {{ security_fail2ban_sshd_enabled }}
+port = {{ security_ssh_port }}
+maxretry = {{ security_fail2ban_sshd_maxretry }}
+bantime = {{ security_fail2ban_sshd_bantime }}
+findtime = {{ security_fail2ban_sshd_findtime }}
+backend = {{ security_fail2ban_sshd_backend }}
+mode = {{ security_fail2ban_sshd_mode }}
+logpath = {{ security_fail2ban_sshd_logpath }}

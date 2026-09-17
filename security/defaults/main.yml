@@ -1,0 +1,44 @@
+#SPDX-License-Identifier: MIT-0
+---
+security_apt_update_cache: true
+security_apt_cache_valid_time: 3600
+security_apt_upgrade: "no"
+security_apt_autoremove: false
+security_apt_purge: false
+
+security_manage_ansible_user: true
+security_manage_admin_user: true
+
+security_ansible_user_name: ""
+security_ansible_user_shell: /bin/bash
+security_ansible_user_ssh_key: ""
+
+security_admin_user_name: ""
+security_admin_user_shell: /bin/bash
+security_admin_user_groups: [sudo]
+security_admin_user_ssh_key: ""
+security_admin_user_sudo_mode: nopasswd # passwd / nopasswd. при использовании passwd обязательно нужно задать security_admin_passwod
+security_admin_user_password: "" # обязательно задать (в group/host vars) при security_admin_user_sudo_mode: passwd
+
+security_ssh_permit_root_login: "no"
+security_ssh_password_authentication: "no"
+security_ssh_x11_forwarding: "no"
+security_ssh_port: 22
+security_ssh_max_auth_tries: 3
+security_ssh_login_grace_time: 30
+security_ssh_allow_users: []
+
+security_ufw_reset: false
+security_ufw_allowed_ports: []
+security_ufw_policy_incoming: deny
+security_ufw_policy_outgoing: allow
+
+security_fail2ban_sshd_enabled: true
+security_fail2ban_sshd_maxretry: 3
+security_fail2ban_sshd_bantime: 1h
+security_fail2ban_sshd_findtime: 10m
+security_fail2ban_sshd_backend: pyinotify
+security_fail2ban_sshd_mode: normal
+security_fail2ban_sshd_logpath: /var/log/auth.log
+security_fail2ban_sshd_ignoreip: []
+# defaults file for security

@@ -1,0 +1,9 @@
+PermitRootLogin {{ security_ssh_permit_root_login }}
+PasswordAuthentication {{ security_ssh_password_authentication }}
+X11Forwarding {{ security_ssh_x11_forwarding }}
+Port {{ security_ssh_port }}
+MaxAuthTries {{ security_ssh_max_auth_tries }}
+LoginGraceTime {{ security_ssh_login_grace_time }}
+{% if security_ssh_allow_users_effective | length > 0 %}
+AllowUsers {{ security_ssh_allow_users_effective }}
+{% endif %}

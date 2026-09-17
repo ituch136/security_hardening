@@ -1,0 +1,24 @@
+---
+# copy to host_vars/<hostname>.yml and fill in real values
+
+security_manage_ansible_user: true
+security_manage_admin_user: true
+
+security_ansible_user_name: "ansible"
+security_ansible_user_ssh_key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+
+security_admin_user_name: "admin"
+security_admin_user_ssh_key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+security_admin_user_sudo_mode: nopasswd
+
+security_ssh_port: 22
+security_ssh_allow_users: []
+
+security_ufw_reset: false
+security_ufw_allowed_ports:
+  - { port: 80, proto: tcp, comment: "http" }
+  - { port: 443, proto: tcp, comment: "https" }
+
+security_fail2ban_sshd_maxretry: 3
+security_fail2ban_sshd_bantime: 1h
+security_fail2ban_sshd_ignoreip: []

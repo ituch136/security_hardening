@@ -1,0 +1,7 @@
+---
+- name: Setting up
+  hosts: app
+  become: true
+
+  roles:
+    - security
