@@ -44,7 +44,14 @@ Sudoers rules are written to `/etc/sudoers.d/50-<user>` and validated with `visu
 
 ## Installation
 
-Add the role and its collections to your `requirements.yml`:
+Quick install:
+
+```bash
+ansible-galaxy role install git+https://github.com/ituch136/security_hardening.git,v1.0.0,security
+ansible-galaxy collection install ansible.posix community.general
+```
+
+For a project, declare the dependencies in its `requirements.yml`:
 
 ```yaml
 roles:
