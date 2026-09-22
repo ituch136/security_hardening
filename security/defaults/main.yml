@@ -18,7 +18,10 @@ security_admin_user_shell: /bin/bash
 security_admin_user_groups: [sudo]
 security_admin_user_ssh_key: ""
 security_admin_user_sudo_mode: nopasswd # passwd / nopasswd. при использовании passwd обязательно нужно задать security_admin_passwod
-security_admin_user_password: "" # обязательно задать (в group/host vars) при security_admin_user_sudo_mode: passwd
+security_admin_user_password: ""
+# security_admin_user_password обязательно задать (в group/host vars)
+# при security_admin_user_sudo_mode: passwd
+# !переменная принимает хеш, а не открытый текст.
 
 security_ssh_permit_root_login: "no"
 security_ssh_password_authentication: "no"
