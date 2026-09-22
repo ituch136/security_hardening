@@ -26,3 +26,13 @@
   when:
     - security_manage_admin_user | bool
     - security_admin_user_sudo_mode != "nopasswd"
+
+- name: Validate ufw policy
+  ansible.builtin.assert:
+    that:
+      - security_ufw_policy_incoming in ["allow", "deny", "reject"]
+      - security_ufw_policy_outgoing in ["allow", "deny", "reject"]
+    fail_msg: "security_ufw_policy_incoming and security_ufw_policy_outgoing should be one of 'allow', 'deny', 'reject'"
+    quiet: true
+  when: security_ufw_reset | bool
+
