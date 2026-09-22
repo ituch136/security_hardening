@@ -1,15 +1,15 @@
 - name: Start and Enable ssh.service
-  ansible.builtin.systemd: 
+  ansible.builtin.systemd:
     name: ssh.service
     state: started
     enabled: true
 
-# Disabling ssh.socket to avoid conflicts with ssh.service (Tested on Yandex Cloud Ubuntu 22.04 LTS. Ssh.service and ssh.socket has conflict section in systemd. If you starting one service, another will be dead) 
+# Disabling ssh.socket to avoid conflicts with ssh.service (Tested on Yandex Cloud Ubuntu 22.04 LTS, self-hosted Ubuntu 24.04. Ssh.service and ssh.socket has conflict section in systemd. If you starting one service, another will be dead) 
 
 - name: Check if ssh.socket exists
   ansible.builtin.command:
     cmd: systemctl list-unit-files ssh.socket
-  register: ssh_socket_unit
+  register: security_ssh_socket_unit
   changed_when: false
   failed_when: false
 
@@ -19,7 +19,7 @@
     state: stopped
     enabled: false
   when:
-    - "'ssh.socket' in ssh_socket_unit.stdout"
+    - "'ssh.socket' in security_ssh_socket_unit.stdout"
 
 - name: Build ssh allowed users list
   ansible.builtin.set_fact:
@@ -49,7 +49,34 @@
   notify:
     - Restart sshd
 
-- name: Validate sshd configuration
+- name: Get effective sshd configuration
   ansible.builtin.command:
-    cmd: /usr/sbin/sshd -t
+    cmd: /usr/sbin/sshd -T
   changed_when: false
+  register: security_sshd_effective
+
+- name: Verify effective sshd configuration
+  ansible.builtin.assert:
+    that:
+      - ("port " ~ security_ssh_port) in security_sshd_effective.stdout_lines
+      - ("permitrootlogin " ~ security_ssh_permit_root_login) in security_sshd_effective.stdout_lines
+      - ("passwordauthentication " ~ security_ssh_password_authentication) in security_sshd_effective.stdout_lines
+    fail_msg: "Effective sshd config differs from role variables. Check other files in /etc/ssh/sshd_config.d"
+    quiet: true
+
+- name: Verify AllowUsers in effective sshd configuration
+  ansible.builtin.assert:
+    that:
+      - ("allowusers " ~ item) in security_sshd_effective.stdout_lines
+    fail_msg: "User {{ item }} is missing from effective AllowUsers"
+    quiet: true
+  loop: "{{ security_ssh_allow_users_effective.split() }}"
+
+- name: Flush handlers (SSH)
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify sshd listens on configured port
+  ansible.builtin.wait_for:
+    port: "{{ security_ssh_port }}"
+    host: 127.0.0.1
+    timeout: 10
