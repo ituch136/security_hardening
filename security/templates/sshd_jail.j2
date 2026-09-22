@@ -1,5 +1,5 @@
 # This role don't assume other jails, so default section kludged in this file
-[default]
+[DEFAULT]
 {% if security_fail2ban_sshd_ignoreip | length > 0 %}
 ignoreip = {{ security_fail2ban_sshd_ignoreip | join(' ') }}
 {% endif %}
