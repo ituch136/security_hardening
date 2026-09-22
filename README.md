@@ -24,11 +24,11 @@ Sudoers rules are written to `/etc/sudoers.d/50-<user>` and validated with `visu
 
 **sshd**
 
-- makes sure `ssh.service` is enabled and `ssh.socket` is stopped and disabled. On Ubuntu 24.04 sshd is socket-activated by default, and the socket listens on the port from its own unit (`ListenStream=22`), ignoring `Port` in the config
+- makes sure `ssh.service` is enabled and `ssh.socket` is stopped and disabled. Ubuntu 24.04 uses socket activation by default, and then restarting `ssh.service` alone does not apply a new `Port`. The role switches sshd to a plain service so that a restart applies config changes
 - builds `AllowUsers` from the managed users plus `security_ssh_allow_users`
 - refuses to continue if the user Ansible is connected as would be missing from `AllowUsers`
 - deploys `/etc/ssh/sshd_config.d/00-hardening.conf`, validated with `sshd -t` before it is written
-- before restarting, checks with `sshd -T` that the effective `Port`, `PermitRootLogin`, `PasswordAuthentication` and `AllowUsers` match the role variables, so a value overridden by another drop-in stops the run
+- before restarting, checks with `sshd -T` that the effective `Port`, `PermitRootLogin`, `PasswordAuthentication` and `AllowUsers` match the role variables, so a value set earlier by another drop-in (sshd uses the first value it finds) stops the run
 - after restart, checks that sshd actually listens on the configured port
 
 **ufw** installs ufw, sets default policies, allows the SSH port and a list of configured ports, enables the firewall. A full reset is available behind a flag.
@@ -47,7 +47,7 @@ Sudoers rules are written to `/etc/sudoers.d/50-<user>` and validated with `visu
 Quick install:
 
 ```bash
-ansible-galaxy role install git+https://github.com/ituch136/security_hardening.git,v1.0.0,security
+ansible-galaxy role install git+https://github.com/ituch136/security_hardening.git,v1.0.1,security
 ansible-galaxy collection install ansible.posix community.general
 ```
 
@@ -58,7 +58,7 @@ roles:
   - name: security
     src: https://github.com/ituch136/security_hardening.git
     scm: git
-    version: v1.0.0
+    version: v1.0.1
 
 collections:
   - name: ansible.posix
@@ -227,6 +227,8 @@ The `ssh` tag also adds the ufw rule for the SSH port. Without it, changing the 
 ansible-playbook -K playbook.yml
 ```
 
+Set `ansible_user` to the bootstrap user in the inventory (or pass `-e ansible_user=...`). `-u` is not enough: the inventory value takes precedence, and the lockout check looks at the variable.
+
 Add that bootstrap user to `security_ssh_allow_users` for this run, otherwise the lockout check stops the role before sshd is touched. After the run, switch `ansible_user` in the inventory to the service user.
 
 **AllowUsers.** Any account not listed loses SSH access after sshd restarts. The role checks the user Ansible is connected as, but not other people who log in to the host. Add them to `security_ssh_allow_users`.
@@ -241,7 +243,7 @@ Add that bootstrap user to `security_ssh_allow_users` for this run, otherwise th
 
 ## Testing
 
-Tested on Ubuntu 22.04 and 24.04 with ansible-core 2.16. With default variables a second run reports `changed=0`.
+Tested on Ubuntu 22.04 and 24.04 with ansible-core 2.16. With the example variables a second run reports `changed=0`.
 
 ## License
 
