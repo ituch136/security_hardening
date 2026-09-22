@@ -35,4 +35,3 @@
     fail_msg: "security_ufw_policy_incoming and security_ufw_policy_outgoing should be one of 'allow', 'deny', 'reject'"
     quiet: true
   when: security_ufw_reset | bool
-
