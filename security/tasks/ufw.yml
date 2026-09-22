@@ -1,0 +1,42 @@
+- name: Install ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  tags: [ssh]
+
+- name: Reset ufw to default #always changed
+  community.general.ufw:
+    state: reset
+  when: security_ufw_reset | bool
+
+- name: Set default policies
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - {direction: incoming, policy: "{{ security_ufw_policy_incoming }}"}
+    - {direction: outgoing, policy: "{{ security_ufw_policy_outgoing }}"}
+  loop_control:
+    label: "{{ item.direction }}: {{ item.policy }}"
+
+- name: Allow SSH port
+  community.general.ufw:
+    rule: allow
+    port: "{{ security_ssh_port}}"
+    proto: tcp
+  tags: [ssh]
+
+- name: Allow configured ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    from_ip: "{{ item.from_ip | default('any') }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ security_ufw_allowed_ports }}"
+  loop_control: # for better logging in output
+    label: "{{ item.port }}/{{ item.proto | default('tcp') }}"
+
+- name: Enable ufw
+  community.general.ufw:
+    state: enabled

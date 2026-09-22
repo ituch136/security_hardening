@@ -1,0 +1,55 @@
+- name: Start and Enable ssh.service
+  ansible.builtin.systemd: 
+    name: ssh.service
+    state: started
+    enabled: true
+
+# Disabling ssh.socket to avoid conflicts with ssh.service (Tested on Yandex Cloud Ubuntu 22.04 LTS. Ssh.service and ssh.socket has conflict section in systemd. If you starting one service, another will be dead) 
+
+- name: Check if ssh.socket exists
+  ansible.builtin.command:
+    cmd: systemctl list-unit-files ssh.socket
+  register: ssh_socket_unit
+  changed_when: false
+  failed_when: false
+
+- name: Stop and Disable ssh.socket
+  ansible.builtin.systemd: 
+    name: ssh.socket
+    state: stopped
+    enabled: false
+  when:
+    - "'ssh.socket' in ssh_socket_unit.stdout"
+
+- name: Build ssh allowed users list
+  ansible.builtin.set_fact:
+    security_ssh_allow_users_effective: >-
+      {{ (
+      ([security_ansible_user_name] if security_manage_ansible_user | bool else [])
+      + ([security_admin_user_name] if security_manage_admin_user | bool else [])
+      + security_ssh_allow_users
+      ) | unique | join(' ') }}
+
+- name: Ensure current connection user is in allowed users list
+  ansible.builtin.assert:
+    that:
+      - ansible_user in security_ssh_allow_users_effective.split(' ')
+    fail_msg: "Current connection user {{ ansible_user }} is not in allowed users list. Add it to security_ssh_allow_users variable in group_vars or host_vars"
+    quiet: true
+  when: security_ssh_allow_users_effective | length > 0 # If security_ssh_allow_users_effective is empty, then we allow all users, so no need to check current connection user
+
+- name: Deploy sshd configuration
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config.d/00-hardening.conf
+    owner: root
+    group: root
+    mode: '0644'
+    validate: '/usr/sbin/sshd -t -f %s'
+  notify:
+    - Restart sshd
+
+- name: Validate sshd configuration
+  ansible.builtin.command:
+    cmd: /usr/sbin/sshd -t
+  changed_when: false

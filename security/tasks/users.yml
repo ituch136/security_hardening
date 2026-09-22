@@ -1,0 +1,63 @@
+- name: Manage ansible service user
+  when: security_manage_ansible_user | bool
+  block:
+    - name: Create ansible service user
+      ansible.builtin.user:
+        name: "{{ security_ansible_user_name }}"
+        shell: "{{ security_ansible_user_shell }}"
+        create_home: true
+        state: present
+        password: "!" # убираем пароль для пользователя. remove password for user
+
+    - name: Deploy ansible user ssh key
+      ansible.posix.authorized_key:
+        user: "{{ security_ansible_user_name }}"
+        key: "{{ security_ansible_user_ssh_key }}"
+        state: present
+        exclusive: false # не трогаем остальные ключи, которые могут быть в файле authorized_keys. don't touch other keys in authorized_keys
+
+    - name: Grant passwordless sudo to ansible user
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/50-{{ security_ansible_user_name }}"
+        content: "{{ security_ansible_user_name }} ALL=(ALL) NOPASSWD: ALL\n"
+        owner: root
+        group: root
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+- name: Manage admin user
+  when: security_manage_admin_user | bool
+  block:
+    - name: Create admin user
+      ansible.builtin.user:
+        name: "{{ security_admin_user_name }}"
+        shell: "{{ security_admin_user_shell }}"
+        groups: "{{ security_admin_user_groups }}"
+        append: true
+        create_home: true
+        state: present
+        password: "{{ security_admin_user_password if security_admin_user_sudo_mode != 'nopasswd' else omit }}" # могли бы убрать пароль через "!" но тогда снесем пароль, если пользователь уже существует
+      no_log: true 
+
+    - name: Deploy admin user ssh key
+      ansible.posix.authorized_key:
+        user: "{{ security_admin_user_name}}"
+        key: "{{ security_admin_user_ssh_key }}"
+        state: present
+        exclusive: false # не трогаем остальные ключи, которые могут быть в authorized_keys. dont touch other keys in authorized_keys
+
+    - name: Grant passwordless sudo to admin user when nopasswd mode
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/50-{{ security_admin_user_name }}"
+        content: "{{ security_admin_user_name }} ALL=(ALL) NOPASSWD: ALL\n"
+        owner: root
+        group: root
+        mode: '0440'
+        validate: 'visudo -cf %s'
+      when: security_admin_user_sudo_mode == "nopasswd"
+
+    - name: Remove admin passwordless sudo when its required
+      ansible.builtin.file:
+        path: "/etc/sudoers.d/50-{{ security_admin_user_name }}"
+        state: absent
+      when: security_admin_user_sudo_mode != "nopasswd"

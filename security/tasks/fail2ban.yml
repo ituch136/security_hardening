@@ -1,0 +1,31 @@
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+
+- name: Install python3-pyinotify dependency for fail2ban
+  ansible.builtin.apt:
+    name: python3-pyinotify
+    state: present
+  when: security_fail2ban_sshd_backend == "pyinotify"
+
+- name: Deploy fail2ban configuration for sshd
+  ansible.builtin.template:
+    src: sshd_jail.j2
+    dest: /etc/fail2ban/jail.d/sshd.local
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Restart fail2ban
+
+- name: Validate fail2ban configuration # fail2ban has no way to check a single file, so we check the whole configuration here.
+  ansible.builtin.command:
+    cmd: fail2ban-client -t
+  changed_when: false
+
+- name: Enable fail2ban service
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: true

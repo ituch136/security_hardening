@@ -1,0 +1,27 @@
+- name: Validate ansible user variables
+  ansible.builtin.assert:
+    that:
+      - security_ansible_user_name | length > 0
+      - security_ansible_user_ssh_key | length > 0
+    fail_msg: "You should set security_ansible_user_name and security_ansible_user_ssh_key variables in group_vars or host_vars"
+    quiet: true
+  when: security_manage_ansible_user | bool
+
+- name: Validate admin user variables
+  ansible.builtin.assert:
+    that:
+      - security_admin_user_name | length > 0
+      - security_admin_user_ssh_key | length > 0
+    fail_msg: "You should set security_admin_user_name and security_admin_user_ssh_key variables in group_vars or host_vars"
+    quiet: true
+  when: security_manage_admin_user | bool
+
+- name: Validate admin password when sudo mode is not nopasswd
+  ansible.builtin.assert:
+    that:
+      - security_admin_user_password | length > 0
+    fail_msg: "You should set security_admin_user_password variable in group_vars or host_vars when security_admin_user_sudo_mode is not nopasswd"
+    quiet: true
+  when:
+    - security_manage_admin_user | bool 
+    - security_admin_user_sudo_mode != "nopasswd"

@@ -1,0 +1,10 @@
+- name: Update & upgrade
+  ansible.builtin.apt:
+    update_cache: "{{ security_apt_update_cache }}"
+    upgrade: "{{ security_apt_upgrade }}"
+    cache_valid_time: "{{ security_apt_cache_valid_time }}"
+
+- name: Remove unused dependencies
+  ansible.builtin.apt:
+    autoremove: "{{ security_apt_autoremove }}"
+    purge: "{{ security_apt_purge }}"
