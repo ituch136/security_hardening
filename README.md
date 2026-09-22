@@ -40,15 +40,35 @@ Sudoers rules are written to `/etc/sudoers.d/50-<user>` and validated with `visu
 - ansible-core 2.16 or newer
 - Ubuntu 22.04 (jammy) or 24.04 (noble)
 - `ansible_user` defined in the inventory: the lockout check compares it with `AllowUsers`
-- collections from `requirements.yml`:
+- collections `ansible.posix` and `community.general`. They are not installed together with the role, add them to your own `requirements.yml` (see Installation)
+
+## Installation
+
+Add the role and its collections to your `requirements.yml`:
+
+```yaml
+roles:
+  - name: security
+    src: https://github.com/ituch136/security_hardening.git
+    scm: git
+    version: v1.0.0
+
+collections:
+  - name: ansible.posix
+  - name: community.general
+```
+
+Then install:
 
 ```bash
-ansible-galaxy collection install -r requirements.yml
+ansible-galaxy install -r requirements.yml
 ```
+
+Keep `name: security`: without it the role is installed under the repository name, and the playbook will not find it as `security`.
 
 ## Role variables
 
-All variables use the `security_` prefix. Defaults are in `security/defaults/main.yml`.
+All variables use the `security_` prefix. Defaults are in `defaults/main.yml`.
 
 ### Users
 
