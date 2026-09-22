@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 - name: Update & upgrade
   ansible.builtin.apt:
     update_cache: "{{ security_apt_update_cache }}"

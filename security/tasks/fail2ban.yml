@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 - name: Install fail2ban
   ansible.builtin.apt:
     name: fail2ban

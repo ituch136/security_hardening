@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 - name: Manage ansible service user
   when: security_manage_ansible_user | bool
   block:
@@ -36,12 +37,13 @@
         append: true
         create_home: true
         state: present
-        password: "{{ security_admin_user_password if security_admin_user_sudo_mode != 'nopasswd' else omit }}" # могли бы убрать пароль через "!" но тогда снесем пароль, если пользователь уже существует
-      no_log: true 
+        password: "{{ security_admin_user_password if security_admin_user_sudo_mode != 'nopasswd' else omit }}"
+        # могли бы убрать пароль через "!" но тогда снесем пароль, если пользователь уже существует
+      no_log: true
 
     - name: Deploy admin user ssh key
       ansible.posix.authorized_key:
-        user: "{{ security_admin_user_name}}"
+        user: "{{ security_admin_user_name }}"
         key: "{{ security_admin_user_ssh_key }}"
         state: present
         exclusive: false # не трогаем остальные ключи, которые могут быть в authorized_keys. dont touch other keys in authorized_keys

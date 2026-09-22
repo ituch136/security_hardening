@@ -1,10 +1,11 @@
+# SPDX-License-Identifier: MIT
 - name: Install ufw
   ansible.builtin.apt:
     name: ufw
     state: present
   tags: [ssh]
 
-- name: Reset ufw to default #always changed
+- name: Reset ufw to default # always changed
   community.general.ufw:
     state: reset
   when: security_ufw_reset | bool
@@ -22,7 +23,7 @@
 - name: Allow SSH port
   community.general.ufw:
     rule: allow
-    port: "{{ security_ssh_port}}"
+    port: "{{ security_ssh_port }}"
     proto: tcp
   tags: [ssh]
 
