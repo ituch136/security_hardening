@@ -1,5 +1,6 @@
 PermitRootLogin {{ security_ssh_permit_root_login }}
 PasswordAuthentication {{ security_ssh_password_authentication }}
+KbdInteractiveAuthentication {{ security_ssh_kbd_interactive_authentication }}
 X11Forwarding {{ security_ssh_x11_forwarding }}
 Port {{ security_ssh_port }}
 MaxAuthTries {{ security_ssh_max_auth_tries }}

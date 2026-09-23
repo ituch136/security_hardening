@@ -5,9 +5,10 @@
     state: started
     enabled: true
 
-# Disabling ssh.socket to avoid conflicts with ssh.service (Tested on Yandex Cloud Ubuntu 22.04 LTS,
-# self-hosted Ubuntu 24.04. Ssh.service and ssh.socket has conflict section in systemd.
-# If you starting one service, another will be dead)
+# Disabling ssh.socket so sshd runs as a plain service and a restart applies the new config
+# (Tested on Yandex Cloud Ubuntu 22.04 LTS, self-hosted Ubuntu 24.04.
+# On 22.04 the ssh.socket unit has Conflicts=ssh.service, so starting one unit kills the other.
+# On 24.04 that Conflicts is gone, so the socket has to be stopped and disabled explicitly)
 
 # systemd module has no way to check whether a unit exists,
 # so systemctl is used here
@@ -66,6 +67,7 @@
       - ("port " ~ security_ssh_port) in security_sshd_effective.stdout_lines
       - ("permitrootlogin " ~ security_ssh_permit_root_login) in security_sshd_effective.stdout_lines
       - ("passwordauthentication " ~ security_ssh_password_authentication) in security_sshd_effective.stdout_lines
+      - ("kbdinteractiveauthentication " ~ security_ssh_kbd_interactive_authentication) in security_sshd_effective.stdout_lines
     fail_msg: "Effective sshd config differs from role variables. Check other files in /etc/ssh/sshd_config.d"
     quiet: true
 
@@ -76,6 +78,19 @@
     fail_msg: "User {{ item }} is missing from effective AllowUsers"
     quiet: true
   loop: "{{ security_ssh_allow_users_effective.split() }}"
+
+# The rule is opened before the restart: after it sshd listens on security_ssh_port,
+# and with an active firewall a rule added later in ufw.yml would come too late.
+- name: Install ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Allow SSH port before sshd restart
+  community.general.ufw:
+    rule: allow
+    port: "{{ security_ssh_port }}"
+    proto: tcp
 
 - name: Flush handlers (SSH)
   ansible.builtin.meta: flush_handlers

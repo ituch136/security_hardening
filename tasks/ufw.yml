@@ -3,7 +3,6 @@
   ansible.builtin.apt:
     name: ufw
     state: present
-  tags: [ssh]
 
 - name: Reset ufw to default # always changed
   community.general.ufw:
@@ -20,12 +19,12 @@
   loop_control:
     label: "{{ item.direction }}: {{ item.policy }}"
 
+# Repeated here after the reset: security_ufw_reset wipes the rule added in ssh.yml
 - name: Allow SSH port
   community.general.ufw:
     rule: allow
     port: "{{ security_ssh_port }}"
     proto: tcp
-  tags: [ssh]
 
 - name: Allow configured ports
   community.general.ufw:
