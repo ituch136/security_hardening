@@ -41,7 +41,7 @@ security_fail2ban_sshd_enabled: true
 security_fail2ban_sshd_maxretry: 3
 security_fail2ban_sshd_bantime: 1h
 security_fail2ban_sshd_findtime: 10m
-security_fail2ban_sshd_backend: pyinotify
+security_fail2ban_sshd_backend: systemd
 security_fail2ban_sshd_mode: normal
 security_fail2ban_sshd_logpath: /var/log/auth.log
 security_fail2ban_sshd_ignoreip: []

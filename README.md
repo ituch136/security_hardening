@@ -67,7 +67,7 @@ You have a control machine with Ansible and a server you want to harden, and not
      - name: security
        src: https://github.com/ituch136/security_hardening.git
        scm: git
-       version: v1.1.0
+       version: v1.2.0
 
    collections:
      - name: ansible.posix
@@ -294,10 +294,14 @@ security_ufw_allowed_ports:
 | `security_fail2ban_sshd_maxretry` | `3` | Failures before a ban |
 | `security_fail2ban_sshd_findtime` | `10m` | Window for counting failures |
 | `security_fail2ban_sshd_bantime` | `1h` | Ban duration |
-| `security_fail2ban_sshd_backend` | `pyinotify` | Log backend |
+| `security_fail2ban_sshd_backend` | `systemd` | Log backend |
 | `security_fail2ban_sshd_mode` | `normal` | Filter mode: `normal`, `ddos`, `extra`, `aggressive` |
 | `security_fail2ban_sshd_logpath` | `/var/log/auth.log` | Log file |
 | `security_fail2ban_sshd_ignoreip` | `[]` | Addresses that are never banned |
+
+The default backend is `systemd`: it reads the journal and needs no log file. The file based backends (`pyinotify`, `polling`, `auto`) read `security_fail2ban_sshd_logpath`, and on images without rsyslog that file does not exist, so preflight stops the run. Install rsyslog on such hosts or keep `systemd`.
+
+With the `systemd` backend `logpath` is not written to the jail at all.
 
 The jail port always follows `security_ssh_port`.
 
@@ -359,6 +363,8 @@ Add that bootstrap user to `security_ssh_allow_users` for this run, otherwise th
 **Docker.** ufw does not filter ports published by Docker containers: that traffic goes through the FORWARD chain, not INPUT. This role does not change that.
 
 **fail2ban.** With an empty `ignoreip` you can ban yourself while testing. Keep console access or a short `bantime` at hand.
+
+**fail2ban backend.** Switching to `pyinotify` or another file based backend requires `/var/log/auth.log` (or whatever `security_fail2ban_sshd_logpath` points to) to exist on the host. Minimal cloud images often ship without rsyslog and keep everything in the journal, so the file is missing and the jail cannot start.
 
 ## Testing
 

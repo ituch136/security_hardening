@@ -42,3 +42,21 @@
     fail_msg: "security_admin_user_sudo_mode must be 'nopasswd' or 'passwd'"
     quiet: true
   when: security_manage_admin_user | bool
+
+- name: Check sshd log file for file based backend
+  ansible.builtin.stat:
+    path: "{{ security_fail2ban_sshd_logpath }}"
+  register: security_fail2ban_logpath_stat
+  when:
+    - security_fail2ban_sshd_enabled | bool
+    - security_fail2ban_sshd_backend != "systemd"
+
+- name: Validate sshd log file for file based backend
+  ansible.builtin.assert:
+    that:
+      - security_fail2ban_logpath_stat.stat.exists
+    fail_msg: "Backend '{{ security_fail2ban_sshd_backend }}' reads {{ security_fail2ban_sshd_logpath }}, but the file does not exist. Install rsyslog or set security_fail2ban_sshd_backend to 'systemd'"
+    quiet: true
+  when:
+    - security_fail2ban_sshd_enabled | bool
+    - security_fail2ban_sshd_backend != "systemd"

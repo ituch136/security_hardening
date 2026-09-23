@@ -12,4 +12,6 @@ bantime = {{ security_fail2ban_sshd_bantime }}
 findtime = {{ security_fail2ban_sshd_findtime }}
 backend = {{ security_fail2ban_sshd_backend }}
 mode = {{ security_fail2ban_sshd_mode }}
+{% if security_fail2ban_sshd_backend != "systemd" %}
 logpath = {{ security_fail2ban_sshd_logpath }}
+{% endif %}
