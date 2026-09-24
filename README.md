@@ -41,6 +41,8 @@ You need a control machine with ansible-core 2.16 or newer (`ansible --version`)
    ansible-playbook playbook.yml
    ```
 
+   If sudo on that server asks for a password, add `-K` and type it once: `ansible-playbook playbook.yml -K`. Connecting as root needs no `-K`. After the first run the service user has passwordless sudo, so later runs go without it.
+
 If the server is brand new and the only account you have is root with a password, do not start with step 5. Read the next section first, it is the common case and it needs two extra settings.
 
 ## First run on a new server
@@ -252,6 +254,8 @@ The same result as the Quick start, file by file.
    ansible-playbook playbook.yml
    ```
 
+   Add `-K` if sudo on the target asks for a password.
+
 9. Run the playbook a second time. It should report `changed=0`.
 
 ### Case 2. Adding the role to an existing project
@@ -330,6 +334,7 @@ For working on the role itself, before the changes are tagged.
 | `Current connection user ... is not in allowed users list` | The account you are connected with would lose SSH access, see "First run on a new server" |
 | `You should set security_ansible_user_name ...` in preflight | Variables not loaded: the `host_vars` file name does not match the host name in the inventory |
 | `invalid key specified: {lookup(...` | A brace is missing in `"{{ lookup(...) }}"`, so the value was never templated |
+| `Missing sudo password` | The account you connect with needs a password for sudo, add `-K` |
 | `couldn't resolve module/action 'ansible.posix.authorized_key'` | The collections were not installed, run `ansible-galaxy install -r requirements.yml` |
 | `the role 'security' was not found` | The role was installed without `name: security`, or `roles_path` points elsewhere |
 | `Collection community.general does not support Ansible version` | The collection is too new for your ansible-core, install `'community.general:<12'` |
