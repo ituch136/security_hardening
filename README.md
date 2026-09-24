@@ -33,7 +33,18 @@ You need a control machine with ansible-core 2.16 or newer (`ansible --version`)
 
 3. Open `inventory.ini` and put in the address of your server and the user you log in as today.
 
-4. Open `host_vars/testhost.yml` and put in the user names you want to exist on the server and the paths to your public SSH keys. Also list the ports your services need: the firewall denies everything that is not listed.
+4. Open `host_vars/testhost.yml` and fill in three things:
+
+   - the user names you want to exist on the server and the paths to your public SSH keys
+   - the ports your services need, because the firewall denies everything that is not listed
+   - the account you log in with today, in `security_ssh_allow_users`:
+
+     ```yaml
+     security_ssh_allow_users:
+       - your_login
+     ```
+
+     The role writes `AllowUsers` to sshd, and only the accounts it knows about end up there. Your current login is not one of them, so without this line it loses SSH access at the end of the run and the role stops before doing any harm. Skip the line only if losing that account is what you want, see "First run on a new server".
 
 5. Run it:
 
@@ -331,7 +342,7 @@ For working on the role itself, before the changes are tagged.
 |---|---|
 | `to use the 'ssh' connection type with passwords, you must install the sshpass program` | Logging in with a password without `sshpass` on the control machine |
 | `Using a SSH password instead of a key is not possible because Host Key checking is enabled` | The server's key is unknown and `accept-new` is not in effect: check that you run from the project directory so its `ansible.cfg` is used, see "Host keys" |
-| `Current connection user ... is not in allowed users list` | The account you are connected with would lose SSH access, see "First run on a new server" |
+| `... is not in allowed users list` | The account you are connected with would lose SSH access. Add it to `security_ssh_allow_users`, or set `security_ssh_allow_lockout: true` if that is intended |
 | `You should set security_ansible_user_name ...` in preflight | Variables not loaded: the `host_vars` file name does not match the host name in the inventory |
 | `invalid key specified: {lookup(...` | A brace is missing in `"{{ lookup(...) }}"`, so the value was never templated |
 | `Missing sudo password` | The account you connect with needs a password for sudo, add `-K` |
@@ -465,7 +476,7 @@ The ufw rule for the SSH port is added inside the sshd block, before sshd is res
 
 ## Read before running
 
-**AllowUsers.** Any account not listed loses SSH access after sshd restarts. The role checks the account Ansible is connected with, but knows nothing about other people who log in to the host. Add them to `security_ssh_allow_users`.
+**AllowUsers.** The role writes `AllowUsers` from the users it manages plus `security_ssh_allow_users`. Any account not listed loses SSH access after sshd restarts, including the one you are running Ansible from, which is why the role checks it and stops. The role checks the account Ansible is connected with, but knows nothing about other people who log in to the host. Add them to `security_ssh_allow_users`.
 
 **SSH keys.** Keys are added with `exclusive: false`, so other entries in `authorized_keys` are kept. Changing `security_ansible_user_ssh_key` or `security_admin_user_ssh_key` adds the new key and leaves the old one in place: revoking a key is a manual step on the host.
 

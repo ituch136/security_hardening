@@ -7,3 +7,8 @@ security_ufw_allowed_ports:
   - { port: 80, proto: tcp, comment: "http" }
   - { port: 443, proto: tcp, comment: "https" }
   # - { port: 9100, proto: tcp, from_ip: "203.0.113.10", comment: "node_exporter" }
+
+# The account you log in with today. Without it your own access is cut off
+# when sshd restarts, and the role stops before that happens.
+security_ssh_allow_users:
+  - user
