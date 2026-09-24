@@ -35,14 +35,26 @@
       + ([security_admin_user_name] if security_manage_admin_user | bool else [])
       + security_ssh_allow_users) | unique | join(' ') }}
 
+- name: Warn about disabled lockout check
+  ansible.builtin.debug:
+    msg: >-
+      Lockout check is disabled. User {{ ansible_user }} is not in AllowUsers
+      and will lose SSH access once sshd restarts. Allow users list: {{ security_ssh_allow_users_effective }}
+  when:
+    - security_ssh_allow_lockout | bool
+    - security_ssh_allow_users_effective | length > 0
+    - ansible_user not in security_ssh_allow_users_effective.split(' ')
+
 - name: Ensure current connection user is in allowed users list
   ansible.builtin.assert:
     that:
       - ansible_user in security_ssh_allow_users_effective.split(' ')
-    fail_msg: "Current connection user {{ ansible_user }} is not in allowed users list. Add it to security_ssh_allow_users variable in group_vars or host_vars"
+    fail_msg: "{{ ansible_user }} is not in allowed users. Set security_ssh_allow_lockout to true or add user to security_ssh_allow_users"
     quiet: true
-  when: security_ssh_allow_users_effective | length > 0
+  when:
+    - security_ssh_allow_users_effective | length > 0 
   # If security_ssh_allow_users_effective is empty, then we allow all users, so no need to check current connection user
+    - not security_ssh_allow_lockout | bool
 
 - name: Deploy sshd configuration
   ansible.builtin.template:

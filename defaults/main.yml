@@ -17,11 +17,11 @@ security_admin_user_name: ""
 security_admin_user_shell: /bin/bash
 security_admin_user_groups: [sudo]
 security_admin_user_ssh_key: ""
-security_admin_user_sudo_mode: nopasswd # passwd / nopasswd. при использовании passwd обязательно нужно задать security_admin_user_password
+security_admin_user_sudo_mode: nopasswd # passwd / nopasswd. при использовании passwd обязательно нужно задать security_admin_user_password | if passwd, then security_admin_user_password must be set
 security_admin_user_password: ""
 # security_admin_user_password обязательно задать (в group/host vars)
 # при security_admin_user_sudo_mode: passwd
-# !переменная принимает хеш, а не открытый текст.
+# !переменная принимает хеш, а не открытый текст. | if admin user sudo mode is passwd, then security_admin_user_password hash must be set, not plain text
 
 security_ssh_permit_root_login: "no"
 security_ssh_password_authentication: "no"
@@ -31,6 +31,7 @@ security_ssh_port: 22
 security_ssh_max_auth_tries: 3
 security_ssh_login_grace_time: 30
 security_ssh_allow_users: []
+security_ssh_allow_lockout: false # set it with caution
 
 security_ufw_reset: false
 security_ufw_allowed_ports: []

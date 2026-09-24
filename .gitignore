@@ -1,7 +1,7 @@
 # inventory and host-specific data
-inventory.ini
-host_vars/
-group_vars/
+/inventory.ini
+/host_vars/
+/group_vars/
 
 # ansible runtime
 *.retry

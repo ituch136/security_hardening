@@ -9,6 +9,112 @@ The role is built around a few rules:
 - defaults must not break access
 - nothing is removed unless a variable explicitly asks for it
 
+## Quick start
+
+This repository is an Ansible role. A role is a library: it has no inventory and no playbook inside, so it cannot be run on its own. You call it from a small project of your own, and the `examples/` directory here is exactly such a project, ready to copy.
+
+You need a control machine with ansible-core 2.16 or newer (`ansible --version`) and an Ubuntu 22.04 or 24.04 server.
+
+1. Copy the example project:
+
+   ```bash
+   git clone https://github.com/ituch136/security_hardening.git
+   cp -r security_hardening/examples my-infra
+   cd my-infra
+   ```
+
+   The clone was needed only for the examples. The role itself is installed in the next step, so you can delete the cloned directory afterwards.
+
+2. Install the role and the collections it needs:
+
+   ```bash
+   ansible-galaxy install -r requirements.yml
+   ```
+
+3. Open `inventory.ini` and put in the address of your server and the user you log in as today.
+
+4. Open `host_vars/testhost.yml` and put in the user names you want to exist on the server and the paths to your public SSH keys. Also list the ports your services need: the firewall denies everything that is not listed.
+
+5. Run it:
+
+   ```bash
+   ansible-playbook playbook.yml
+   ```
+
+If the server is brand new and the only account you have is root with a password, do not start with step 5. Read the next section first, it is the common case and it needs two extra settings.
+
+## First run on a new server
+
+A provider usually gives you root and a password. The role creates your own users, switches sshd to keys only and takes SSH access away from root. That is the point of it, but it means the account you are connected with right now is the account that loses access at the end of the run. Ansible refuses to do that silently, so you have to say that it is intended.
+
+1. Install `sshpass` on the control machine: Ansible cannot type an SSH password without it.
+
+   ```bash
+   sudo apt install sshpass
+   ```
+
+2. Decide what to do with the server's host key. The example `ansible.cfg` already contains:
+
+   ```ini
+   ssh_args = -o StrictHostKeyChecking=accept-new -o ControlMaster=auto -o ControlPersist=60s
+   ```
+
+   That accepts the key on the first connection without a prompt and verifies it on every connection after that, so nothing extra is needed to get started. See "Host keys" below for what this trades away and how to be strict about it.
+
+3. In `inventory.ini` connect as root:
+
+   ```ini
+   [app]
+   testhost ansible_host=203.0.113.10 ansible_user=root ansible_port=22
+   ```
+
+4. In `host_vars/testhost.yml` allow the role to cut off the account you are using:
+
+   ```yaml
+   security_ssh_allow_lockout: true
+   ```
+
+5. Run the playbook and type the root password when asked:
+
+   ```bash
+   ansible-playbook playbook.yml --ask-pass
+   ```
+
+   The users are created first, then sshd restarts. Root loses SSH access at that moment, while your current connection survives to the end of the run.
+
+6. Switch the project to the new user: remove `security_ssh_allow_lockout` from `host_vars/testhost.yml`, change `ansible_user` in the inventory to the service user you created, and run again, this time without `--ask-pass`:
+
+   ```bash
+   ansible-playbook playbook.yml
+   ```
+
+   The second run should report `changed=0`. That is also the proof that the new access works.
+
+If you changed `security_ssh_port`, update `ansible_port` in the inventory as well before the second run.
+
+**The risk.** Between the sshd restart and the end of the run there is a window where root can no longer log in. If the connection drops in that window, you are left with the provider's console. On a server you cannot afford to lose this way, do it in two runs instead: `ansible-playbook playbook.yml --tags users --ask-pass` as root, then switch `ansible_user` to the service user and do the full run. No lockout flag is needed then.
+
+**If your bootstrap account is not root** but an ordinary user with sudo, there is nothing to lock yourself out of: add that user to `security_ssh_allow_users` instead of setting the lockout flag, and pass the sudo password with `-K`.
+
+### Host keys
+
+`StrictHostKeyChecking=accept-new` in the example `ansible.cfg` means: the first time you connect, the server's key is stored without asking; from then on a changed key aborts the connection. It keeps the first run simple and still protects every run after it.
+
+What it does not protect is that very first connection. If somebody sits between you and the server at that moment, you store their key and never notice, and on the first run you are sending the root password over that connection. Plain `ssh-keyscan` has exactly the same weakness: it trusts whoever answers.
+
+The only way to remove that risk is to compare fingerprints. Most providers show the host key fingerprints in the web console or in the server's setup output. If you care, take them from there and add the key yourself:
+
+```bash
+ssh-keyscan 203.0.113.10 >> ~/.ssh/known_hosts
+ssh-keygen -lf ~/.ssh/known_hosts | grep 203.0.113.10
+```
+
+Compare the printed fingerprint with the one in the console. If they differ, delete the line and find out why before you connect again.
+
+Never replace this with `host_key_checking = False`: that setting stays in the config forever and silently drops the check on every host and every future run, including the ones where you send a password.
+
+If you keep `accept-new`, remember that `ssh_args` replaces the defaults rather than adding to them. That is why `ControlMaster` and `ControlPersist` are in the same line: without them every task opens a new SSH connection and runs are noticeably slower.
+
 ## What it does
 
 **Preflight** checks required variables and allowed values (sudo mode, ufw policies) before anything is changed.
@@ -26,48 +132,46 @@ Sudoers rules are written to `/etc/sudoers.d/50-<user>` and validated with `visu
 
 - makes sure `ssh.service` is enabled and `ssh.socket` is stopped and disabled. Ubuntu 24.04 uses socket activation by default, and then restarting `ssh.service` alone does not apply a new `Port`. The role switches sshd to a plain service so that a restart applies config changes
 - builds `AllowUsers` from the managed users plus `security_ssh_allow_users`
-- refuses to continue if the user Ansible is connected as would be missing from `AllowUsers`
+- refuses to continue if the user Ansible is connected as would be missing from `AllowUsers`, unless `security_ssh_allow_lockout` is set
 - deploys `/etc/ssh/sshd_config.d/00-hardening.conf`, validated with `sshd -t` before it is written
 - before restarting, checks with `sshd -T` that the effective `Port`, `PermitRootLogin`, `PasswordAuthentication`, `KbdInteractiveAuthentication` and `AllowUsers` match the role variables, so a value set earlier by another drop-in (sshd uses the first value it finds) stops the run
 - after restart, checks that sshd actually listens on the configured port
 
 **ufw** installs ufw, sets default policies, allows the SSH port and a list of configured ports, enables the firewall. A full reset is available behind a flag.
 
-**fail2ban** installs `fail2ban` (and `python3-pyinotify` when the `pyinotify` backend is used), deploys an sshd jail to `/etc/fail2ban/jail.d/sshd.local` with explicit `port`, `logpath` and `backend`, so the jail does not depend on distribution defaults, validates the whole configuration with `fail2ban-client -t`, then starts and enables the service.
+**fail2ban** installs `fail2ban` (and `python3-pyinotify` when the `pyinotify` backend is used), deploys an sshd jail to `/etc/fail2ban/jail.d/sshd.local` with explicit `port`, `backend` and, for file based backends, `logpath`, so the jail does not depend on distribution defaults, validates the whole configuration with `fail2ban-client -t`, then starts and enables the service.
 
 ## Requirements
 
 - ansible-core 2.16 or newer
-- Ubuntu 22.04 (jammy) or 24.04 (noble)
+- Ubuntu 22.04 (jammy) or 24.04 (noble) on the target
+- collections `ansible.posix` and `community.general`. They do not come with the role, install them from your own `requirements.yml`
 - `ansible_user` defined in the inventory: the lockout check compares it with `AllowUsers`
-- collections `ansible.posix` and `community.general`. They are not installed together with the role, add them to your own `requirements.yml` (see Usage)
-- `sshpass` on the control machine, if you connect with a password (a fresh host from a provider, before keys are deployed)
-- the host key of the target in `known_hosts`: the role does not disable host key checking, add the key with `ssh-keyscan` before the first run
+- `sshpass` on the control machine, if you log in with a password
+- a decision about the server's host key. The example `ansible.cfg` sets `StrictHostKeyChecking=accept-new`, which accepts the key on the first connection and verifies it on every later one. See "Host keys" below
 
 ## Usage
 
-A role does not run on its own. It needs a project around it: an inventory with your hosts, variables for those hosts, and a playbook that calls the role. Pick the case that matches yours.
+The Quick start copies a ready project. This section explains what is inside it, how to add the role to a project you already have, and how to run the role from a local clone while working on it.
 
-### Case 1. New project from scratch
+### Case 1. Building the project by hand
 
-You have a control machine with Ansible and a server you want to harden, and nothing else yet.
+The same result as the Quick start, file by file.
 
-1. Install ansible-core 2.16 or newer on the control machine. Check with `ansible --version`.
-
-2. Create a project directory and go into it:
+1. Create a project directory and go into it:
 
    ```bash
    mkdir my-infra && cd my-infra
    ```
 
-3. Create `requirements.yml`:
+2. Create `requirements.yml`:
 
    ```yaml
    roles:
      - name: security
        src: https://github.com/ituch136/security_hardening.git
        scm: git
-       version: v1.2.0
+       version: v1.3.0
 
    collections:
      - name: ansible.posix
@@ -77,15 +181,20 @@ You have a control machine with Ansible and a server you want to harden, and not
 
    Keep `name: security`: without it the role is installed under the repository name, and the playbook will not find it as `security`. The version limit on `community.general` matters on ansible-core 2.16: newer releases of the collection do not support it and print a warning on every run.
 
-4. Create `ansible.cfg`, so Ansible installs and looks for the role inside the project:
+3. Create `ansible.cfg`, so Ansible installs and looks for the role inside the project:
 
    ```ini
    [defaults]
    inventory = inventory.ini
    roles_path = ./roles
+
+   [ssh_connection]
+   ssh_args = -o StrictHostKeyChecking=accept-new -o ControlMaster=auto -o ControlPersist=60s
    ```
 
-5. Install the role and the collections:
+   The `ssh_args` line accepts an unknown host key on the first connection and verifies it afterwards, see "Host keys". Ansible only reads `ansible.cfg` from the directory you run the command in, so always run `ansible-playbook` from the project root.
+
+4. Install the role and the collections:
 
    ```bash
    ansible-galaxy install -r requirements.yml
@@ -93,16 +202,18 @@ You have a control machine with Ansible and a server you want to harden, and not
 
    The role lands in `./roles/security`.
 
-6. Create `inventory.ini`:
+5. Create `inventory.ini`:
 
    ```ini
    [app]
-   server1 ansible_host=203.0.113.10 ansible_user=ansible ansible_port=22
+   testhost ansible_host=203.0.113.10 ansible_user=ansible ansible_port=22
    ```
 
-   `server1` is the host name inside Ansible. It can be anything, but the variables file in the next step must have exactly this name.
+   `ansible_user` is the account you log in as **today**, not the one the role will create. On a brand new server that is usually `root`, see "First run on a new server".
 
-7. Create `host_vars/server1.yml`:
+   `testhost` is the host name inside Ansible. It can be anything, but the variables file in the next step must be named after it.
+
+6. Create `host_vars/testhost.yml`:
 
    ```yaml
    security_ansible_user_name: "ansible"
@@ -116,9 +227,13 @@ You have a control machine with Ansible and a server you want to harden, and not
      - { port: 443, proto: tcp, comment: "https" }
    ```
 
-   The file name must match the host name from the inventory (`server1` → `server1.yml`), otherwise Ansible does not load it and preflight stops the run. The key path is on the control machine, and `{{ ... }}` needs both double braces.
+   Three things people get wrong here:
 
-8. Create `playbook.yml`:
+   - the file name must match the host name from the inventory (`testhost` → `testhost.yml`), otherwise Ansible does not load it and preflight stops the run
+   - `{{ ... }}` needs both braces on each side, and the key path is on the control machine, not on the server
+   - the incoming firewall policy is `deny`, so every port your services need has to be in `security_ufw_allowed_ports`. The SSH port is handled by the role itself. Ports published by Docker containers are a special case, see **Docker**
+
+7. Create `playbook.yml`:
 
    ```yaml
    - name: Harden servers
@@ -130,26 +245,22 @@ You have a control machine with Ansible and a server you want to harden, and not
 
    `become: true` is required: the role changes system files.
 
-9. Check and run:
+8. Check and run:
 
    ```bash
    ansible-playbook --syntax-check playbook.yml
    ansible-playbook playbook.yml
    ```
 
-   On a fresh host read **First run** in "Read before running" first: the service user does not exist yet, so the first run goes through another account with `-K`.
-
-10. Run the playbook a second time. It should report `changed=0`.
+9. Run the playbook a second time. It should report `changed=0`.
 
 ### Case 2. Adding the role to an existing project
 
-You already have a project with an inventory and playbooks.
-
-1. Add the role and the collections to the project's `requirements.yml` (see step 3 of Case 1) and run `ansible-galaxy install -r requirements.yml`.
+1. Add the role and the collections to the project's `requirements.yml` (see step 2 of Case 1) and run `ansible-galaxy install -r requirements.yml`.
 
 2. Put the role variables into `host_vars/<host>.yml` or `group_vars/<group>.yml`, whichever your project uses.
 
-3. Call the role from a playbook. Either as a separate play, usually first, so later plays already run on a hardened host:
+3. Call the role from a playbook, usually as the first play, so later plays already run on a hardened host:
 
    ```yaml
    - name: Harden servers
@@ -165,7 +276,7 @@ You already have a project with an inventory and playbooks.
        - my_app
    ```
 
-   or from tasks of an existing play:
+   or from the tasks of an existing play:
 
    ```yaml
    - name: Harden
@@ -173,18 +284,18 @@ You already have a project with an inventory and playbooks.
        name: security
    ```
 
-4. Before the first run on hosts that are already in use, check two things:
+4. On hosts that are already in use, check two things before the first run:
 
-   - everyone who logs in over SSH is either a managed user or listed in `security_ssh_allow_users` (see **AllowUsers**)
-   - ports your services need are listed in `security_ufw_allowed_ports`, because the default incoming policy is `deny`. Ports published by Docker are not affected, see **Docker**
+   - everyone who logs in over SSH is either a managed user or listed in `security_ssh_allow_users`, otherwise they lose access, see **AllowUsers**
+   - every port your services need is in `security_ufw_allowed_ports`, because the default incoming policy is `deny`
 
 5. To run only part of the role, use tags, for example `ansible-playbook playbook.yml --tags ssh`. See [Tags](#tags).
 
-### Case 3. Running from a local clone
+### Case 3. Running the role from a local clone
 
-For testing changes to the role before they are tagged.
+For working on the role itself, before the changes are tagged.
 
-1. Clone the repository:
+1. Clone the repository and go into it:
 
    ```bash
    git clone https://github.com/ituch136/security_hardening.git
@@ -193,10 +304,10 @@ For testing changes to the role before they are tagged.
 
 2. Create `ansible.cfg`, `inventory.ini`, `host_vars/<host>.yml` and `playbook.yml` in the repository root, as in Case 1, with two differences:
 
-   - in `ansible.cfg` set `roles_path = ..`: the role is the repository directory itself, so Ansible has to look one level up
+   - in `ansible.cfg` set `roles_path = ..`, because the role is this directory itself and Ansible has to look one level up
    - in `playbook.yml` call the role by the directory name, `security_hardening`, not `security`
 
-3. Keep these files out of git. `inventory.ini` and `host_vars/` are already in `.gitignore`. Exclude the other two locally, without touching `.gitignore`:
+3. Keep those files out of git. `inventory.ini`, `host_vars/` and `group_vars/` in the repository root are already in `.gitignore`. Exclude the other two locally, without touching `.gitignore`:
 
    ```bash
    echo -e "ansible.cfg\nplaybook.yml" >> .git/info/exclude
@@ -208,17 +319,21 @@ For testing changes to the role before they are tagged.
    ansible-galaxy collection install ansible.posix 'community.general:<12'
    ```
 
-5. Run the playbook as in Case 1, steps 9 and 10.
+5. Run the playbook as in Case 1.
 
 ### Common errors
 
 | Error | Cause |
 |---|---|
+| `to use the 'ssh' connection type with passwords, you must install the sshpass program` | Logging in with a password without `sshpass` on the control machine |
+| `Using a SSH password instead of a key is not possible because Host Key checking is enabled` | The server's key is unknown and `accept-new` is not in effect: check that you run from the project directory so its `ansible.cfg` is used, see "Host keys" |
+| `Current connection user ... is not in allowed users list` | The account you are connected with would lose SSH access, see "First run on a new server" |
 | `You should set security_ansible_user_name ...` in preflight | Variables not loaded: the `host_vars` file name does not match the host name in the inventory |
-| `invalid key specified: {lookup(...` | A brace is missing in `"{{ lookup(...) }}"`, the string was not templated |
+| `invalid key specified: {lookup(...` | A brace is missing in `"{{ lookup(...) }}"`, so the value was never templated |
+| `couldn't resolve module/action 'ansible.posix.authorized_key'` | The collections were not installed, run `ansible-galaxy install -r requirements.yml` |
 | `the role 'security' was not found` | The role was installed without `name: security`, or `roles_path` points elsewhere |
-| `Collection community.general does not support Ansible version` | Collection too new for your ansible-core, install `'community.general:<12'` |
-| `Current connection user ... is not in allowed users list` | `ansible_user` is not in `AllowUsers`, see **First run** |
+| `Collection community.general does not support Ansible version` | The collection is too new for your ansible-core, install `'community.general:<12'` |
+| `Backend 'pyinotify' reads /var/log/auth.log, but the file does not exist` | Image without rsyslog, keep the `systemd` backend or install rsyslog |
 
 ## Role variables
 
@@ -264,8 +379,11 @@ Keep it in `ansible-vault`, not in plain host_vars.
 | `security_ssh_max_auth_tries` | `3` | `MaxAuthTries` |
 | `security_ssh_login_grace_time` | `30` | `LoginGraceTime` |
 | `security_ssh_allow_users` | `[]` | Extra users for `AllowUsers` |
+| `security_ssh_allow_lockout` | `false` | Allow the connecting user to lose SSH access |
 
 If the resulting user list is empty, `AllowUsers` is not written at all.
+
+By default the role stops when the account Ansible is connected with would not be in `AllowUsers`, because that account loses SSH access the moment sshd restarts. `security_ssh_allow_lockout: true` replaces that check with a warning and lets the run continue. It is meant for the first run on a new server, where you connect as root and do not want root in `AllowUsers`. See "First run on a new server".
 
 ### ufw
 
@@ -296,7 +414,7 @@ security_ufw_allowed_ports:
 | `security_fail2ban_sshd_bantime` | `1h` | Ban duration |
 | `security_fail2ban_sshd_backend` | `systemd` | Log backend |
 | `security_fail2ban_sshd_mode` | `normal` | Filter mode: `normal`, `ddos`, `extra`, `aggressive` |
-| `security_fail2ban_sshd_logpath` | `/var/log/auth.log` | Log file |
+| `security_fail2ban_sshd_logpath` | `/var/log/auth.log` | Log file, file based backends only |
 | `security_fail2ban_sshd_ignoreip` | `[]` | Addresses that are never banned |
 
 The default backend is `systemd`: it reads the journal and needs no log file. The file based backends (`pyinotify`, `polling`, `auto`) read `security_fail2ban_sshd_logpath`, and on images without rsyslog that file does not exist, so preflight stops the run. Install rsyslog on such hosts or keep `systemd`.
@@ -342,17 +460,7 @@ The ufw rule for the SSH port is added inside the sshd block, before sshd is res
 
 ## Read before running
 
-**First run.** On a fresh host the service user does not exist yet. Connect as an existing user and pass the sudo password once with `-K`:
-
-```bash
-ansible-playbook -K playbook.yml
-```
-
-Set `ansible_user` to the bootstrap user in the inventory (or pass `-e ansible_user=...`). `-u` is not enough: the inventory value takes precedence, and the lockout check looks at the variable.
-
-Add that bootstrap user to `security_ssh_allow_users` for this run, otherwise the lockout check stops the role before sshd is touched. After the run, switch `ansible_user` in the inventory to the service user.
-
-**AllowUsers.** Any account not listed loses SSH access after sshd restarts. The role checks the user Ansible is connected as, but not other people who log in to the host. Add them to `security_ssh_allow_users`.
+**AllowUsers.** Any account not listed loses SSH access after sshd restarts. The role checks the account Ansible is connected with, but knows nothing about other people who log in to the host. Add them to `security_ssh_allow_users`.
 
 **SSH keys.** Keys are added with `exclusive: false`, so other entries in `authorized_keys` are kept. Changing `security_ansible_user_ssh_key` or `security_admin_user_ssh_key` adds the new key and leaves the old one in place: revoking a key is a manual step on the host.
 
@@ -364,7 +472,7 @@ Add that bootstrap user to `security_ssh_allow_users` for this run, otherwise th
 
 **fail2ban.** With an empty `ignoreip` you can ban yourself while testing. Keep console access or a short `bantime` at hand.
 
-**fail2ban backend.** Switching to `pyinotify` or another file based backend requires `/var/log/auth.log` (or whatever `security_fail2ban_sshd_logpath` points to) to exist on the host. Minimal cloud images often ship without rsyslog and keep everything in the journal, so the file is missing and the jail cannot start.
+**fail2ban backend.** A file based backend needs `/var/log/auth.log` (or whatever `security_fail2ban_sshd_logpath` points to) to exist. Minimal cloud images often ship without rsyslog and keep everything in the journal, so the file is missing and the jail cannot start. Preflight catches this before anything is changed.
 
 ## Testing
 

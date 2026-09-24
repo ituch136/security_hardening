@@ -1,0 +1,11 @@
+---
+roles:
+  - name: security
+    src: https://github.com/ituch136/security_hardening.git
+    scm: git
+    version: v1.3.0
+
+collections:
+  - name: ansible.posix
+  - name: community.general
+    version: "<12"
